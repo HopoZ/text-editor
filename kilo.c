@@ -13,11 +13,16 @@ void enableRawMode() {
     atexit(disableRawMode);
 
     struct termios raw = orig_termios;
+    raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK |
+                     ISTRIP); // This is a flag used to enable or disable
+                              // software flow control (XON/XOFF) for input
+    raw.c_oflag &= ~(OPOST); // post-process of output
+    raw.c_cflag |= (CS8);    // set not clear ,so use |=
     raw.c_lflag &=
-        ~(ECHO |
-          ICANON); // the ICANON flag that allows us to turn off canonical mode.
-                   // This means we will finally be reading input byte-by-byte
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+        ~(ECHO | ICANON | IEXTEN |
+          ISIG); // the ICANON flag that allows us to turn off canonical mode.
+                 // This means we will finally be reading input byte-by-byte
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw); // terminal control set attributes
 }
 
 int main() {
@@ -25,9 +30,12 @@ int main() {
     char c;
     while (read(STDIN_FILENO, &c, 1) == 1 && c != 'q') {
         if (iscntrl(c)) {
-            printf("%d\n", c);
+            printf("%d\r\n", c);
         } else {
-            printf("%d ('%c')\n", c, c);
+            printf("%d ('%c')\r\n", c,
+                   c); //%d tells it to format the byte as a decimal number (its
+                       // ASCII code), and %c tells it to write out the byte
+                       // directly, as a character.
         }
     }
     return 0;
