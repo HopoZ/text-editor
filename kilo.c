@@ -1,4 +1,5 @@
 /*** includes ***/
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -6,34 +7,37 @@
 #include <termios.h>
 #include <unistd.h>
 
-/*** data **/
+/*** defines ***/
+
+#define CTRL_KEY(k) ((k) & 0x1f)
+
+/*** data ***/
+
 struct termios orig_termios;
 
 /*** terminal ***/
+
 void die(const char *s) {
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    write(STDOUT_FILENO, "\x1b[H", 3);
     perror(s); // print the errno descriptively
     exit(1);
 }
 
 void disableRawMode() {
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1)
-        die("tcsetattr");
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1) die("tcsetattr");
 }
 
 void enableRawMode() {
-    if (tcgetattr(STDIN_FILENO, &orig_termios) == -1)
-        die("tcgetattr");
+    if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) die("tcgetattr");
     atexit(disableRawMode);
 
     struct termios raw = orig_termios;
-    raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK |
-                     ISTRIP); // This is a flag used to enable or disable
+    raw.c_iflag &= ~(IXON | ICRNL | BRKINT | INPCK | ISTRIP); // This is a flag used to enable or disable
                               // software flow control (XON/XOFF) for input
     raw.c_oflag &= ~(OPOST);  // post-process of output
-    raw.c_cflag |= (CS8);     // set not clear ,so use |=
-    raw.c_lflag &=
-        ~(ECHO | ICANON | IEXTEN |
-          ISIG); // the ICANON flag that allows us to turn off canonical mode.
+    raw.c_cflag |= (CS8);     // to set not to clear ,so use |=
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG); // the ICANON flag that allows us to turn off canonical mode.
     // This means we will finally be reading input byte-by-byte
     raw.c_cc[VMIN] = 0;
     raw.c_cc[VTIME] = 1;
@@ -41,23 +45,54 @@ void enableRawMode() {
         die("tcsetattr"); // terminal control set attributes
 }
 
+char editorReadKey() {
+    int nread;
+    char c;
+    while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+        if (nread == -1 && errno != EAGAIN)
+            die("read");
+    }
+    return c;
+}
+
+/*** output ***/
+
+void editorDrawRows(){
+    int y;
+    for(y =0;y<24;y++){
+        write(STDOUT_FILENO,"~\r\n",3);
+    }
+}
+void editorRefreshScreen() {
+    write(STDOUT_FILENO, "\x1b[2J", 4); // 1b represent esc,always followed by [,
+//0J is to  clear the screen from the cursor up to the end of the screen.
+// 1J is to clear the screen up to where the cursor is, 2J is to to clear the entire screen
+// 4 means 4 bytes
+    write(STDOUT_FILENO,"\x1b[H]",3);//to reposition the cursor
+    editorDrawRows();
+    write(STDOUT_FILENO,"\x1b[H]",3);
+}
+
+/*** input ***/
+
+void editorProcessKeypress() {
+    char c = editorReadKey();
+    switch (c) {
+    case CTRL_KEY('q'):
+        write(STDOUT_FILENO, "\x1b[2J", 4);
+        write(STDOUT_FILENO, "\x1b[H", 3);
+        exit(0);
+        break;
+    }
+}
+
 /*** init ***/
+
 int main() {
     enableRawMode();
     while (1) {
-        char c = '0';
-        if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) // error again
-            die("read");
-        if (iscntrl(c)) {
-            printf("%d\r\n", c);
-        } else {
-            printf("%d ('%c')\r\n", c,
-                   c); //%d tells it to format the byte as a decimal number (its
-                       // ASCII code), and %c tells it to write out the byte
-                       // directly, as a character.
-        }
-        if (c == 'q')
-            break;
+        editorRefreshScreen();
+        editorProcessKeypress();
     }
     return 0;
 }
