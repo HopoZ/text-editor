@@ -1,2 +1,2 @@
-kilo:kilo.c
-	$(CC) kilo.c -o kilo -Wall -Wextra -pedantic -std=c99
+hopoz:hopoz.c
+	$(CC) hopoz.c -o hopoz -Wall -Wextra -pedantic -std=c99
