@@ -69,7 +69,7 @@ struct editorConfig E;
 
 void editorSetStatusMessage(const char *fmt, ...);
 void editorRefreshScreen();
-char* editorPrompt(char *prompt);
+char *editorPrompt(char *prompt, void (*callback)(char *, int));
 
 /*** terminal ***/
 
@@ -230,6 +230,20 @@ int editorRowCxToRx(erow *row, int cx) {
   return rx;
 }
 
+int editorRowRxToCx(erow *row, int rx) {
+  int cur_rx = 0;
+  int cx;
+  for (cx = 0; cx < row->size; cx++) {
+    if (row->chars[cx] == '\t')
+      cur_rx += (HOPOZ_TAB_STOP - 1) - (cur_rx % HOPOZ_TAB_STOP);
+    cur_rx++;
+
+    if (cur_rx > rx)
+      return cx;
+  }
+  return cx;
+}
+
 void editorUpdateRow(erow *row) {
   int tabs = 0;
   int j = 0;
@@ -252,10 +266,11 @@ void editorUpdateRow(erow *row) {
   row->render[idx] = '\0';
   row->rsize = idx;
 }
-void editorInsertRow(int at,char *s, size_t len) {
-  if(at <0 || at >E.numrows) return;
-  E.row =realloc(E.row, sizeof(erow)*(E.numrows +1));
-  memmove(&E.row[at +1], &E.row[at], sizeof(erow)*(E.numrows -at));
+void editorInsertRow(int at, char *s, size_t len) {
+  if (at < 0 || at > E.numrows)
+    return;
+  E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+  memmove(&E.row[at + 1], &E.row[at], sizeof(erow) * (E.numrows - at));
 
   E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
   E.row[at].size = len;
@@ -318,39 +333,40 @@ void editorRowDelChar(erow *row, int at) {
 
 void editorInsertChar(int c) {
   if (E.cy == E.numrows) {
-    editorInsertRow(E.numrows,"", 0);
+    editorInsertRow(E.numrows, "", 0);
   }
   editorRowInsertChar(&E.row[E.cy], E.cx, c);
   E.cx++;
 }
 
-void editorInsertNewline(){
-  if(E.cx == 0){
+void editorInsertNewline() {
+  if (E.cx == 0) {
     editorInsertRow(E.cy, "", 0);
-  }else{
-    erow *row =&E.row[E.cy];
-    editorInsertRow(E.cy +1, &row->chars[E.cx], row->size -E.cx);
-    row =&E.row[E.cy];
-    row->size =E.cx;
-    row->chars[row->size] ='\0';
+  } else {
+    erow *row = &E.row[E.cy];
+    editorInsertRow(E.cy + 1, &row->chars[E.cx], row->size - E.cx);
+    row = &E.row[E.cy];
+    row->size = E.cx;
+    row->chars[row->size] = '\0';
     editorUpdateRow(row);
   }
   E.cy++;
-  E.cx =0;
+  E.cx = 0;
 }
 
 void editorDelChar() {
   if (E.cy == E.numrows)
     return;
-  if(E.cx == 0 && E.cy == 0) return;
+  if (E.cx == 0 && E.cy == 0)
+    return;
 
   erow *row = &E.row[E.cy];
   if (E.cx > 0) {
     editorRowDelChar(row, E.cx - 1);
     E.cx--;
-  }else {
-    E.cx =E.row[E.cy -1].size;
-    editorRowAppendString(&E.row[E.cy -1], row->chars, row->size);
+  } else {
+    E.cx = E.row[E.cy - 1].size;
+    editorRowAppendString(&E.row[E.cy - 1], row->chars, row->size);
     editorDelRow(E.cy);
     E.cy--;
   }
@@ -395,7 +411,7 @@ void editorOpen(char *filename) {
     while ((linelen > 0 && line[linelen - 1] == '\n') ||
            line[linelen - 1] == '\r')
       linelen--;
-    editorInsertRow(E.numrows,line, linelen);
+    editorInsertRow(E.numrows, line, linelen);
   }
   free(line);
   fclose(fp);
@@ -403,9 +419,9 @@ void editorOpen(char *filename) {
 }
 
 void editorSave() {
-  if (E.filename == NULL){
-    E.filename =editorPrompt("Save as: %s (esc to cancel)");
-    if(E.filename == NULL){
+  if (E.filename == NULL) {
+    E.filename = editorPrompt("Save as: %s (esc to cancel)", NULL);
+    if (E.filename == NULL) {
       editorSetStatusMessage("Save aborted");
       return;
     }
@@ -430,6 +446,62 @@ void editorSave() {
   }
   free(buf);
   editorSetStatusMessage("can't save! I/o error: %s", strerror(errno));
+}
+
+/*** find ***/
+
+void editorFindCallback(char *query, int key) {
+  static int last_match =-1;
+  static int direction =1;
+
+  if (key == '\r' || key == '\x1b') {
+    last_match =-1;
+    direction =1;
+    return;
+  }else if(key == ARROW_UP || key == ARROW_LEFT){
+    direction =-1;
+  }else if(key == ARROW_DOWN || key == ARROW_RIGHT){
+    direction =1;
+  }else{
+    last_match =-1;
+    direction =1;
+  }
+
+  if(last_match == -1) direction =1;
+  int current =last_match;
+  int i;
+  for (i = 0; i < E.numrows; i++) {
+    current +=direction;
+    if(current == -1) current =E.numrows -1;
+    else if(current == E.numrows) current =0;
+    erow *row = &E.row[current];
+    char *match = strstr(row->render, query);
+    if (match) {
+      last_match =current;
+      E.cy =current;
+      E.cx = editorRowRxToCx(row, match - row->render);
+      E.rowoff = E.numrows;
+      break;
+    }
+  }
+}
+
+void editorFind() {
+  int saved_cx = E.cx;
+  int saved_cy = E.cy;
+  int saved_coloff = E.coloff;
+  int saved_rowoff = E.rowoff;
+
+  char *query = editorPrompt("search: %s (Use ESC/Arrows/Enter)", editorFindCallback);
+
+  if (query) {
+    free(query);
+  }else{
+    E.cx = saved_cx;
+    E.cy = saved_cy;
+    E.coloff = saved_coloff;
+    E.rowoff = saved_rowoff;
+  }
 }
 
 /*** append buffer ***/
@@ -593,37 +665,43 @@ void editorSetStatusMessage(
 
 /*** input ***/
 
-char* editorPrompt(char *prompt){
-  size_t bufsize =128;
-  char *buf =malloc(bufsize);
+char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
+  size_t bufsize = 128;
+  char *buf = malloc(bufsize);
 
-  size_t buflen =0;
-  buf[0] ='\0';
+  size_t buflen = 0;
+  buf[0] = '\0';
 
   while (1) {
-    editorSetStatusMessage(prompt,buf);
+    editorSetStatusMessage(prompt, buf);
     editorRefreshScreen();
 
-    int c =editorReadKey();
-    if(c ==DEL_KEY || c ==CTRL_KEY('h') || c ==BACKSPACE){
-      if(buflen !=0) buf[--buflen] ='\0';
-    }else if(c == '\x1b'){
+    int c = editorReadKey();
+    if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+      if (buflen != 0)
+        buf[--buflen] = '\0';
+    } else if (c == '\x1b') {
       editorSetStatusMessage("");
+      if (callback)
+        callback(buf, c);
       free(buf);
       return NULL;
-    }else if(c == '\r'){
-      if(buflen !=0){
+    } else if (c == '\r') {
+      if (buflen != 0) {
         editorSetStatusMessage("");
         return buf;
       }
-    }else if(!iscntrl(c) && c<128){
-      if(buflen == bufsize -1){
-        bufsize *=2;
-        buf =realloc(buf, bufsize);
+    } else if (!iscntrl(c) && c < 128) {
+      if (buflen == bufsize - 1) {
+        bufsize *= 2;
+        buf = realloc(buf, bufsize);
       }
-      buf[buflen++] =c;
-      buf[buflen] ='\0';
+      buf[buflen++] = c;
+      buf[buflen] = '\0';
     }
+
+    if (callback)
+      callback(buf, c);
   }
 }
 
@@ -669,6 +747,10 @@ void editorProcessKeypress() {
   switch (c) {
   case '\r':
     editorInsertNewline();
+    break;
+  case '/':
+  case CTRL_KEY('f'):
+    editorFind();
     break;
   case CTRL_KEY('q'):
     if (E.dirty && quit_times > 0) {
@@ -763,7 +845,8 @@ int main(int argc, char *argv[]) {
     editorOpen(argv[1]);
   }
 
-  editorSetStatusMessage("HELP: Ctrl-q to leave | Ctrl-s to save");
+  editorSetStatusMessage(
+      "HELP: Ctrl-q to leave | Ctrl-s to save | Ctrl-f or / to find");
 
   while (1) {
     editorRefreshScreen();
