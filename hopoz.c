@@ -42,16 +42,25 @@ enum editorKey {
   DEL_KEY
 };
 
-enum editorHighlight { HL_NORMAL = 0, HL_NUMBER, HL_MATCH };
+enum editorHighlight {
+  HL_NORMAL = 0,
+  HL_COMMENT,
+  HL_STRING,
+  HL_NUMBER,
+  HL_MATCH
+};
 
-#define HL_HIGHLIGHT_NUMBERS                                                   \
-  (1 << 0) // Flag with binary representation 00000001
+#define HL_HIGHLIGHT_NUMBERS (1 << 0)
+// Flag with binary representation 00000001
+
+#define HL_HIGHLIGHT_STRINGS (1 << 1)
 
 /*** data ***/
 
 struct editorSyntax {
   char *filetype;
   char **filematch;
+  char *singleLine_commment_start;
   int flags;
 };
 
@@ -85,7 +94,7 @@ struct editorConfig E;
 char *C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
 
 struct editorSyntax HLDB[] = {
-    {"c", C_HL_extensions, HL_HIGHLIGHT_NUMBERS},
+    {"c", C_HL_extensions, "//", HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS},
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0])) // highlight database
@@ -245,8 +254,8 @@ int getWindowsSize(int *rows, int *cols) {
 
 int is_separator(int c) {
   return isspace(c) || c == '\0' || strchr(",.()+-*/=~%<>[]", c) != NULL;
-  // strchr() It looks for the first occurrence of a character in a string, and
-  // returns a pointer to the matching character in the string.
+  // strchr() It looks for the first occurrence of a character in a string,
+  // and returns a pointer to the matching character in the string.
 }
 
 void editorUpdateSyntax(erow *row) {
@@ -256,12 +265,46 @@ void editorUpdateSyntax(erow *row) {
   if (E.syntax == NULL)
     return;
 
+  char *scs = E.syntax->singleLine_commment_start;
+  int scslen = scs ? strlen(scs) : 0;
+
   int prev_sep = 1; // previous separator
+  int in_string = 0;
 
   int i;
   while (i < row->rsize) {
     char c = row->render[i];
     unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
+
+    if(scslen && !in_string){
+        if(!strncmp(&row->render[i], scs, scslen)){
+            memset(&row->hl[i], HL_COMMENT, row->rsize -i);
+            break; 
+        }
+    }
+
+    if (E.syntax->flags & HL_HIGHLIGHT_STRINGS) {
+      if (in_string) {
+        row->hl[i] = HL_STRING;
+        if (c == '\\' && i + 1 < row->rsize) {
+          row->hl[i + 1] = HL_STRING;
+          i += 2;
+          continue;
+        }
+        if (c == in_string)
+          in_string = 0;
+        i++;
+        prev_sep = 1;
+        continue;
+      } else {
+        if (c == '"' || c == '\'') {
+          in_string = c;
+          row->hl[i] = HL_STRING;
+          i++;
+          continue;
+        }
+      }
+    }
 
     if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
       if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
@@ -280,6 +323,10 @@ void editorUpdateSyntax(erow *row) {
 
 int editorSyntaxToColor(int hl) {
   switch (hl) {
+  case HL_COMMENT:
+    return 36;
+  case HL_STRING:
+    return 35;
   case HL_NUMBER:
     return 31;
   case HL_MATCH:
@@ -303,14 +350,14 @@ void editorSelectSyntaxHighlight() {
       int is_ext = (s->filematch[i][0] == '.');
       if ((is_ext && ext && !strcmp(ext, s->filematch[i])) ||
           (!is_ext && strstr(E.filename, s->filematch[i]))) {
-            E.syntax =s;
+        E.syntax = s;
 
-            int filerow;
-            for(filerow =0;filerow <E.numrows;filerow++){
-              editorUpdateSyntax(&E.row[filerow]);
-            }
+        int filerow;
+        for (filerow = 0; filerow < E.numrows; filerow++) {
+          editorUpdateSyntax(&E.row[filerow]);
+        }
 
-            return;
+        return;
       }
       i++;
     }
