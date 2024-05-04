@@ -747,7 +747,7 @@ void editorDrawRows(struct abuf *ab) {
         len = 0;
       if (len > E.screencols)
         len = E.screencols;
-      char *c = &E.row[filerow].render[E.rowoff];
+      char *c = &E.row[filerow].render[E.coloff];
       unsigned char *hl = &E.row[filerow].hl[E.coloff];
       int current_color = -1;
       int j;
