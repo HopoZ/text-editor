@@ -45,5 +45,9 @@ vscode ms官方intelligence不好用，还是clangd这个lsp强一点
 
 完成搜索功能，怎么感觉搜索功能实现效率很低呢
 
+2024 0504  
+又装回了nvimdots配置的neovim，但是没有那个方便的搜索提示功能了，好烦。
+
+完成了高亮的整体设计
 
 
