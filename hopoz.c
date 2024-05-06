@@ -94,7 +94,12 @@ struct editorConfig E;
 char *C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
 
 struct editorSyntax HLDB[] = {
-    {"c", C_HL_extensions, "//", HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS},
+{
+      "c",
+     C_HL_extensions,
+      "//",
+      HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
+      },
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0])) // highlight database
@@ -253,7 +258,7 @@ int getWindowsSize(int *rows, int *cols) {
 /*** syntax highlighting ***/
 
 int is_separator(int c) {
-  return isspace(c) || c == '\0' || strchr(",.()+-*/=~%<>[]", c) != NULL;
+  return isspace(c) || c == '\0' || strchr(",.()+-*/=~%<>[];", c) != NULL;
   // strchr() It looks for the first occurrence of a character in a string,
   // and returns a pointer to the matching character in the string.
 }
@@ -271,7 +276,7 @@ void editorUpdateSyntax(erow *row) {
   int prev_sep = 1; // previous separator
   int in_string = 0;
 
-  int i;
+  int i =0;
   while (i < row->rsize) {
     char c = row->render[i];
     unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
@@ -416,6 +421,7 @@ void editorUpdateRow(erow *row) {
 
   editorUpdateSyntax(row);
 }
+
 void editorInsertRow(int at, char *s, size_t len) {
   if (at < 0 || at > E.numrows)
     return;
@@ -549,7 +555,9 @@ void editorOpen(char *filename) {
   E.filename = strdup(
       filename); // makes a copy of the given string, allocating the required
                  // memory and assuming you will free() that memory.
+                 
   editorSelectSyntaxHighlight();
+
   FILE *fp = fopen(filename, "r");
   if (!fp)
     die("fopen");
