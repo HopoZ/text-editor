@@ -45,6 +45,8 @@ enum editorKey {
 enum editorHighlight {
   HL_NORMAL = 0,
   HL_COMMENT,
+  HL_KEYWORD1,
+  HL_KEYWORD2,
   HL_STRING,
   HL_NUMBER,
   HL_MATCH
@@ -60,6 +62,7 @@ enum editorHighlight {
 struct editorSyntax {
   char *filetype;
   char **filematch;
+  char **keywords;
   char *singleLine_commment_start;
   int flags;
 };
@@ -92,11 +95,18 @@ struct editorConfig E;
 /*** filetypes ***/
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", NULL};
+char *C_HL_keywords[] = {
+    "switch", "if", "while", "for", "break", "continue", "return", "else",
+  "struct", "union", "typedef", "static", "enum", "class", "case",
+  "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+  "void|", NULL
+};
 
 struct editorSyntax HLDB[] = {
 {
       "c",
      C_HL_extensions,
+     C_HL_keywords,
       "//",
       HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
       },
@@ -270,6 +280,8 @@ void editorUpdateSyntax(erow *row) {
   if (E.syntax == NULL)
     return;
 
+  char **keywords =E.syntax->keywords; // an alias
+
   char *scs = E.syntax->singleLine_commment_start;
   int scslen = scs ? strlen(scs) : 0;
 
@@ -321,6 +333,25 @@ void editorUpdateSyntax(erow *row) {
       }
     }
 
+    if(prev_sep){
+      int j;
+      for(j =0;keywords[j];j++){
+        int klen =strlen(keywords[j]);
+        int kw2 =keywords[j][klen-1] == '|';
+        if(kw2) klen--;
+
+        if(!strncmp(&row->render[i], keywords[j], klen) && is_separator(row->render[i +klen])){
+          memset(&row->hl[i], kw2 ? HL_KEYWORD2 : HL_KEYWORD1,klen);
+          i +=klen;
+          break;
+        }
+      }
+      if(keywords[j] != NULL){
+        prev_sep =0;
+        continue;
+      }
+    }
+
     prev_sep = is_separator(c);
     i++;
   }
@@ -329,15 +360,19 @@ void editorUpdateSyntax(erow *row) {
 int editorSyntaxToColor(int hl) {
   switch (hl) {
   case HL_COMMENT:
-    return 36;
+    return 36; // cyan
+  case HL_KEYWORD1:
+    return 33; // yellow
+  case HL_KEYWORD2:
+    return 32; // green
   case HL_STRING:
-    return 35;
+    return 35; // magenta
   case HL_NUMBER:
-    return 31;
+    return 31; // red
   case HL_MATCH:
-    return 34;
+    return 34; // blue
   default:
-    return 37;
+    return 37; // default color
   }
 }
 

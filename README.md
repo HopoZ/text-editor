@@ -62,3 +62,4 @@ hopoz.c:280:12: warning: The left operand of '<' is a garbage value [core.Undefi
 
 原来i没有初始化，赞美工具
 
+完成关键词高亮
