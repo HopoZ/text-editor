@@ -48,18 +48,23 @@ vscode ms官方intelligence不好用，还是clangd这个lsp强一点
 
 完成了高亮的整体设计
 
-2024 0505
+2024 0505  
 高亮的语法设计有问题导致翻页功能出错，还得学git，好定位到出错的分支
 
-2024 0507
+2024 0507  
 有个错误导致代码高亮一直未生效，直到我用了代码分析器，
+```bash
 User
 $ clang --analyze hopoz.c                                                                                                                                [5:34:40]
 hopoz.c:280:12: warning: The left operand of '<' is a garbage value [core.UndefinedBinaryOperatorResult]
   while (i < row->rsize) {
          ~ ^
 1 warning generated.
+```
 
 原来i没有初始化，赞美工具
 
 完成关键词高亮
+
+2024 0511  
+完成多行代码注释，主体部分完结撒花
