@@ -1,5 +1,5 @@
 # how to build  
-simply build the hopoz.c
+simply run make in the bash
 
 # how ro run
 input ./hopoz or ./hopoz +\<filename\> in the bash
