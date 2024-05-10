@@ -2,4 +2,4 @@
 simply build the hopoz.c
 
 # how ro run
-input ./hopoz or ./hopoz +<filename> in the bash
+input ./hopoz or ./hopoz +\<filename\> in the bash
