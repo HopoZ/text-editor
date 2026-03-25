@@ -591,6 +591,7 @@ public:
                     return;
                 }
                 write(STDOUT_FILENO, "\x1b[2J\x1b[H", 7);
+                disableRawMode();
                 exit(0);
             case CTRL_KEY('s'): save(); break;
             case CTRL_KEY('f'): find(); break;
@@ -643,5 +644,6 @@ int main(int argc, char* argv[]) {
         editor.refreshScreen();
         editor.processKeypress();
     }
+    
     return 0;
 }
