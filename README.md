@@ -11,9 +11,9 @@ make
 
 # cpp版
 
-## how to build  
+## build  
 
-run in the bash
+在bash中输入
 
 ```bash
 g++ hopoz.cpp -std=c++17 -o editor
@@ -21,5 +21,5 @@ g++ hopoz.cpp -std=c++17 -o editor
 
 生成editor可执行文件
 
-## how ro run
+## run
 在bash中输入 ./editor 或者 ./editor +\<filename\>
